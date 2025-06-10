@@ -1,0 +1,11 @@
+export BUCKET_NAME=devops-bootcamp-1749585074
+export WEBSITE_URL=http://devops-bootcamp-1749585074.s3-website-us-east-1.amazonaws.com
+export REGION=us-east-1
+export DISTRIBUTION_ID=E3FB9TJY2P04OK
+export CLOUDFRONT_DOMAIN=d1t1et5tjvep2.cloudfront.net
+export CLOUDFRONT_URL=https://d1t1et5tjvep2.cloudfront.net
+export USER_POOL_ID=us-east-1_sgcR0nyyj
+export CLIENT_ID=1ldgvhnkgp4qbpmj7b27a235oe
+export CLIENT_SECRET=1hp7lff8l31ppgbb5r3hb0ar0ahhs55artr6dje6dqssdgtvrsro
+export COGNITO_DOMAIN=https://cognito-idp.us-east-1.amazonaws.com
+export REGION=us-east-1

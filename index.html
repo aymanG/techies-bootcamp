@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Bootcamp</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0a0a0a;
+            color: #00ff88;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            text-align: center;
+            padding: 20px;
+            max-width: 800px;
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+        .status {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+            border: 2px solid #333;
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .test-info {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #888;
+            text-align: left;
+        }
+        .success {
+            color: #00ff88;
+        }
+        .pending {
+            color: #ff9800;
+        }
+        .info-item {
+            margin: 5px 0;
+            padding: 5px;
+            background: #0a0a0a;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="pulse">DevOps Bootcamp</h1>
+        <p>Learn DevOps by Doing</p>
+        
+        <div class="status">
+            <h2>🚀 Phase 1 - Step 2: CloudFront Active!</h2>
+            <p class="success">✓ S3 Static Website Working</p>
+            <p class="success" id="cloudfront-status">⏳ CloudFront Status: Checking...</p>
+            
+            <div class="test-info">
+                <div class="info-item">
+                    <strong>Access Method:</strong> <span id="access-method">Detecting...</span>
+                </div>
+                <div class="info-item">
+                    <strong>Protocol:</strong> <span id="protocol"></span>
+                </div>
+                <div class="info-item">
+                    <strong>CloudFront Cache:</strong> <span id="cache-status">Checking...</span>
+                </div>
+                <div class="info-item">
+                    <strong>Your IP:</strong> <span id="ip">Loading...</span>
+                </div>
+                <div class="info-item">
+                    <strong>Timestamp:</strong> <span id="timestamp"></span>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #1a1a1a; border-radius: 10px;">
+            <h3>Next Steps Preview:</h3>
+            <p style="color: #888;">Step 3: Add Cognito Authentication</p>
+            <p style="color: #888;">Step 4: Create Lambda Functions</p>
+            <p style="color: #888;">Step 5: Build API Gateway</p>
+        </div>
+    </div>
+
+    <script>
+        // Show current timestamp
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+        
+        // Detect protocol
+        document.getElementById('protocol').textContent = window.location.protocol;
+        
+        // Detect if accessed via CloudFront
+        const host = window.location.hostname;
+        let accessMethod = 'Unknown';
+        let cloudfrontStatus = '❌ Not using CloudFront';
+        
+        if (host.includes('cloudfront.net')) {
+            accessMethod = 'CloudFront CDN';
+            cloudfrontStatus = '✅ CloudFront is working!';
+            document.getElementById('cloudfront-status').className = 'success';
+        } else if (host.includes('s3-website')) {
+            accessMethod = 'S3 Direct';
+            cloudfrontStatus = '⚠️ Using S3 directly (CloudFront not active yet)';
+            document.getElementById('cloudfront-status').className = 'pending';
+        }
+        
+        document.getElementById('access-method').textContent = accessMethod;
+        document.getElementById('cloudfront-status').textContent = cloudfrontStatus;
+        
+        // Check cache headers (only works if served via CloudFront)
+        fetch(window.location.href, { method: 'HEAD' })
+            .then(response => {
+                const cacheStatus = response.headers.get('x-cache') || 'Not available';
+                document.getElementById('cache-status').textContent = cacheStatus;
+            })
+            .catch(() => {
+                document.getElementById('cache-status').textContent = 'Unable to check';
+            });
+        
+        // Get user's IP
+        fetch('https://api.ipify.org?format=json')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('ip').textContent = data.ip;
+            })
+            .catch(() => {
+                document.getElementById('ip').textContent = 'Unable to fetch';
+            });
+    </script>
+</body>
+</html>
