@@ -1,0 +1,19 @@
+{
+  "resource": "/api/health",
+  "path": "/api/health",
+  "httpMethod": "GET",
+  "headers": {
+    "Accept": "application/json",
+    "Host": "api.example.com"
+  },
+  "queryStringParameters": null,
+  "pathParameters": null,
+  "stageVariables": null,
+  "requestContext": {
+    "stage": "prod",
+    "requestId": "test-request-id",
+    "apiId": "hdxbz1zbx4"
+  },
+  "body": null,
+  "isBase64Encoded": false
+}

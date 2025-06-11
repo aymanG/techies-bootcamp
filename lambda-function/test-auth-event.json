@@ -1,0 +1,7 @@
+{
+  "path": "/api/user/profile",
+  "httpMethod": "GET",
+  "headers": {
+    "Authorization": "YOUR_JWT_TOKEN_HERE"
+  }
+}

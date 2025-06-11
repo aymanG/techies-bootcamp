@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Academy - Learn by Doing</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+
+        .loading-screen.hide {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #1a1a1a;
+            border-top-color: #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Navigation */
+        nav {
+            background-color: #1a1a1a;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #00ff88;
+            box-shadow: 0 2px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00ff88;
+            text-decoration: none;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #e0e0e0;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .points-badge {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #0a0a0a;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Auth Section */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: calc(100vh - 80px);
+        }
+
+        .auth-box {
+            background: #1a1a1a;
+            padding: 3rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid #333;
+            transition: all 0.3s;
+        }
+
+        .auth-box:hover {
+            border-color: #00ff88;
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.2);
+        }
+
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #333;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 1rem;
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .auth-tab.active {
+            color: #00ff88;
+            border-bottom: 2px solid #00ff88;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0a0a0a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #00ff88, #00cc6f);
+            color: #0a0a0a;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: none;
+        }
+
+        .dashboard.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: #1a1a1a;
+            padding: 2rem;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid #333;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .stat-card:hover::before {
+            left: 100%;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: #00ff88;
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.2);
+        }
+
+        .stat-value {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #00ff88;
+            margin: 1rem 0;
+        }
+
+        .stat-label {
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.8rem;
+        }
+
+        /* Challenges Grid */
+        .challenges-section {
+            margin-top: 3rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            color: #00ff88;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .challenges-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .challenge-card {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 15px;
+            padding: 2rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .challenge-card.completed {
+            border-color: #00ff88;
+            background: linear-gradient(135deg, #1a1a1a, #0a2a1a);
+        }
+
+        .challenge-card.locked {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .challenge-card:not(.locked):hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: #00ff88;
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.3);
+        }
+
+        .challenge-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .challenge-level {
+            background: #333;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #00ff88;
+        }
+
+        .challenge-points {
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .challenge-title {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+
+        .challenge-description {
+            color: #888;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .difficulty-badge {
+            display: inline-block;
+            padding: 0.25rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .difficulty-beginner {
+            background: #4caf50;
+            color: #0a0a0a;
+        }
+
+        .difficulty-intermediate {
+            background: #ff9800;
+            color: #0a0a0a;
+        }
+
+        .difficulty-advanced {
+            background: #f44336;
+            color: #fff;
+        }
+
+        /* Messages */
+        .message {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            animation: slideIn 0.3s, slideOut 0.3s 2.7s;
+            z-index: 1000;
+            max-width: 400px;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(400px); }
+            to { transform: translateX(0); }
+        }
+
+        @keyframes slideOut {
+            from { transform: translateX(0); }
+            to { transform: translateX(400px); }
+        }
+
+        .message.success {
+            background: #1a3a1a;
+            border: 2px solid #00ff88;
+            color: #00ff88;
+        }
+
+        .message.error {
+            background: #3a1a1a;
+            border: 2px solid #ff0088;
+            color: #ff0088;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .challenges-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.5s;
+        }
+
+        .slide-up {
+            animation: slideUp 0.5s;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loader"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="#" class="logo">&lt;DevOps Academy/&gt;</a>
+        <ul class="nav-links">
+            <li><a href="#dashboard">Dashboard</a></li>
+            <li><a href="#challenges">Challenges</a></li>
+            <li><a href="#leaderboard">Leaderboard</a></li>
+            <li id="userNav" style="display: none;">
+                <div class="user-info">
+                    <span id="userName"></span>
+                    <span class="points-badge">⚡ <span id="userPoints">0</span> pts</span>
+                    <button onclick="logout()" class="btn" style="width: auto; padding: 0.5rem 1rem;">Logout</button>
+                </div>
+            </li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <!-- Auth Section -->
+        <div id="authSection" class="auth-container">
+            <div class="auth-box">
+                <h1 style="text-align: center; margin-bottom: 2rem; color: #00ff88;">DevOps Academy</h1>
+                
+                <div class="auth-tabs">
+                    <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
+                    <button class="auth-tab" onclick="showAuthTab('register')">Register</button>
+                </div>
+
+                <!-- Login Form -->
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="btn" id="loginBtn">Login</button>
+                </form>
+
+                <!-- Register Form -->
+                <form id="registerForm" style="display: none;" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label for="registerEmail">Email</label>
+                        <input type="email" id="registerEmail" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="registerPassword">Password</label>
+                        <input type="password" id="registerPassword" required autocomplete="new-password" 
+                               placeholder="8+ chars, uppercase, lowercase, number">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password</label>
+                        <input type="password" id="confirmPassword" required autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn" id="registerBtn">Create Account</button>
+                </form>
+
+                <!-- Verify Form -->
+                <form id="verifyForm" style="display: none;" onsubmit="handleVerify(event)">
+                    <p style="text-align: center; color: #888; margin-bottom: 2rem;">
+                        Check your email for a 6-digit verification code
+                    </p>
+                    <div class="form-group">
+                        <label for="verifyCode">Verification Code</label>
+                        <input type="text" id="verifyCode" required maxlength="6" pattern="[0-9]{6}" 
+                               placeholder="123456" style="text-align: center; font-size: 1.5rem;">
+                    </div>
+                    <button type="submit" class="btn" id="verifyBtn">Verify Email</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboardSection" class="dashboard">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Points</div>
+                    <div class="stat-value" id="totalPoints">0</div>
+                    <div class="stat-label">Global Rank #<span id="globalRank">-</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Challenges Completed</div>
+                    <div class="stat-value" id="completedCount">0</div>
+                    <div class="stat-label">of <span id="totalChallenges">0</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Current Streak</div>
+                    <div class="stat-value" id="currentStreak">0</div>
+                    <div class="stat-label">Days</div>
+                </div>
+            </div>
+
+            <!-- Challenges -->
+            <div class="challenges-section">
+                <div class="section-header">
+                    <h2 class="section-title">Available Challenges</h2>
+                    <button class="btn" style="width: auto; padding: 0.75rem 2rem;" onclick="refreshChallenges()">
+                        Refresh
+                    </button>
+                </div>
+                <div id="challengesGrid" class="challenges-grid">
+                    <!-- Challenges will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AWS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+    
+    <script>
+        // Configuration - WILL BE REPLACED BY SED
+        const API_ENDPOINT = 'https://hdxbz1zbx4.execute-api.us-east-1.amazonaws.com/prod';
+        const USER_POOL_ID = 'us-east-1_sgcR0nyyj';
+        const CLIENT_ID = '6qgl1afuotr6u1pa4n2kfnrcml';
+
+        // Cognito setup
+        const poolData = {
+            UserPoolId: USER_POOL_ID,
+            ClientId: CLIENT_ID
+        };
+        const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+        
+        let currentUser = null;
+        let userEmail = '';
+        let authToken = '';
+
+        // Check auth on load
+        window.onload = () => {
+            checkAuth();
+            setTimeout(() => {
+                document.getElementById('loadingScreen').classList.add('hide');
+            }, 1000);
+        };
+
+        function checkAuth() {
+            const cognitoUser = userPool.getCurrentUser();
+            if (cognitoUser) {
+                cognitoUser.getSession((err, session) => {
+                    if (!err && session.isValid()) {
+                        authToken = session.getIdToken().getJwtToken();
+                        showDashboard(cognitoUser);
+                    } else {
+                        showAuth();
+                    }
+                });
+            } else {
+                showAuth();
+            }
+        }
+
+        function showAuth() {
+            document.getElementById('authSection').style.display = 'flex';
+            document.getElementById('dashboardSection').classList.remove('active');
+            document.getElementById('userNav').style.display = 'none';
+        }
+
+        function showDashboard(user) {
+            currentUser = user;
+            user.getUserAttributes((err, attributes) => {
+                if (!err) {
+                    const email = attributes.find(attr => attr.Name === 'email')?.Value;
+                    document.getElementById('userName').textContent = email;
+                    userEmail = email;
+                }
+            });
+
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('dashboardSection').classList.add('active');
+            document.getElementById('userNav').style.display = 'block';
+            
+            loadDashboardData();
+        }
+
+        function showAuthTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+            document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+            document.getElementById('verifyForm').style.display = 'none';
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const btn = document.getElementById('loginBtn');
+            
+            btn.disabled = true;
+            btn.textContent = 'Logging in...';
+
+            const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
+                Username: email,
+                Password: password
+            });
+
+            const cognitoUser = new AmazonCognitoIdentity.CognitoUser({
+                Username: email,
+                Pool: userPool
+            });
+
+            cognitoUser.authenticateUser(authDetails, {
+                onSuccess: (result) => {
+                    authToken = result.getIdToken().getJwtToken();
+                    showMessage('Login successful!', 'success');
+                    showDashboard(cognitoUser);
+                    btn.disabled = false;
+                    btn.textContent = 'Login';
+                },
+                onFailure: (err) => {
+                    showMessage(err.message || 'Login failed', 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Login';
+                    
+                    if (err.code === 'UserNotConfirmedException') {
+                        userEmail = email;
+                        document.getElementById('loginForm').style.display = 'none';
+                        document.getElementById('verifyForm').style.display = 'block';
+                    }
+                }
+            });
+        }
+
+        async function handleRegister(event) {
+            event.preventDefault();
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            const confirm = document.getElementById('confirmPassword').value;
+            const btn = document.getElementById('registerBtn');
+
+            if (password !== confirm) {
+                showMessage('Passwords do not match', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Creating account...';
+
+            const attributeList = [
+                new AmazonCognitoIdentity.CognitoUserAttribute({
+                    Name: 'email',
+                    Value: email
+                })
+            ];
+
+            userPool.signUp(email, password, attributeList, null, (err, result) => {
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
+
+                if (err) {
+                    showMessage(err.message || 'Registration failed', 'error');
+                    return;
+                }
+
+                userEmail = email;
+                showMessage('Account created! Check your email for verification code', 'success');
+                document.getElementById('registerForm').style.display = 'none';
+                document.getElementById('verifyForm').style.display = 'block';
+            });
+        }
+
+        async function handleVerify(event) {
+            event.preventDefault();
+            const code = document.getElementById('verifyCode').value;
+            const btn = document.getElementById('verifyBtn');
+
+            btn.disabled = true;
+            btn.textContent = 'Verifying...';
+
+            const cognitoUser = new AmazonCognitoIdentity.CognitoUser({
+                Username: userEmail,
+                Pool: userPool
+            });
+
+            cognitoUser.confirmRegistration(code, true, (err, result) => {
+                btn.disabled = false;
+                btn.textContent = 'Verify Email';
+
+                if (err) {
+                    showMessage(err.message || 'Verification failed', 'error');
+                    return;
+                }
+
+                showMessage('Email verified! You can now login', 'success');
+                setTimeout(() => {
+                    document.getElementById('verifyForm').style.display = 'none';
+                    document.getElementById('loginForm').style.display = 'block';
+                    document.getElementById('loginEmail').value = userEmail;
+                }, 2000);
+            });
+        }
+
+        function logout() {
+            if (currentUser) {
+                currentUser.signOut();
+            }
+            authToken = '';
+            showAuth();
+            showMessage('Logged out successfully', 'success');
+        }
+
+        async function loadDashboardData() {
+            try {
+                // Load user profile
+                const profileResponse = await fetch(`${API_ENDPOINT}/api/user/profile`, {
+                    headers: {
+                        'Authorization': authToken
+                    }
+                });
+                
+                if (profileResponse.ok) {
+                    const profile = await profileResponse.json();
+                    document.getElementById('userPoints').textContent = profile.points || 0;
+                    document.getElementById('totalPoints').textContent = profile.points || 0;
+                }
+
+                // Load challenges
+                await loadChallenges();
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        async function loadChallenges() {
+            try {
+                const response = await fetch(`${API_ENDPOINT}/api/challenges`);
+                const data = await response.json();
+                
+                const grid = document.getElementById('challengesGrid');
+                grid.innerHTML = '';
+                
+                if (data.challenges) {
+                    document.getElementById('totalChallenges').textContent = data.challenges.length;
+                    
+                    data.challenges.forEach((challenge, index) => {
+                        const card = createChallengeCard(challenge);
+                        card.style.animationDelay = `${index * 0.1}s`;
+                        card.classList.add('slide-up');
+                        grid.appendChild(card);
+                    });
+                }
+            } catch (error) {
+                showMessage('Failed to load challenges', 'error');
+            }
+        }
+
+        function createChallengeCard(challenge) {
+            const card = document.createElement('div');
+            card.className = 'challenge-card';
+            
+            // Check if completed (mock for now)
+            const isCompleted = Math.random() > 0.7;
+            const isLocked = challenge.level > 2 && !isCompleted;
+            
+            if (isCompleted) card.classList.add('completed');
+            if (isLocked) card.classList.add('locked');
+            
+            card.innerHTML = `
+                <div class="challenge-header">
+                    <span class="challenge-level">Level ${challenge.level}</span>
+                    <span class="challenge-points">${isCompleted ? '✓' : ''} ${challenge.points} pts</span>
+                </div>
+                <h3 class="challenge-title">${challenge.name}</h3>
+                <p class="challenge-description">${challenge.description}</p>
+                <span class="difficulty-badge difficulty-${challenge.difficulty}">${challenge.difficulty}</span>
+                ${isLocked ? '<div style="margin-top: 1rem; color: #888;">🔒 Complete prerequisites first</div>' : ''}
+            `;
+            
+            if (!isLocked) {
+                card.onclick = () => startChallenge(challenge);
+            }
+            
+            return card;
+        }
+
+        function startChallenge(challenge) {
+            showMessage(`Starting challenge: ${challenge.name}`, 'success');
+            // In Phase 2, this will launch the container
+        }
+
+        function refreshChallenges() {
+            loadChallenges();
+            showMessage('Challenges refreshed', 'success');
+        }
+
+        function showMessage(text, type) {
+            const existing = document.querySelector('.message');
+            if (existing) existing.remove();
+            
+            const message = document.createElement('div');
+            message.className = `message ${type}`;
+            message.textContent = text;
+            document.body.appendChild(message);
+            
+            setTimeout(() => message.remove(), 3000);
+        }
+    </script>
+</body>
+</html>

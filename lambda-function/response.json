@@ -1,0 +1,1 @@
+{"statusCode":200,"body":"{\"status\":\"healthy\",\"timestamp\":\"2025-06-11T00:50:33.444Z\",\"service\":\"devops-bootcamp-api\"}","headers":{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type,Authorization","Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"}}

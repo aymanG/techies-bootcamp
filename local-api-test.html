@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test - Local</title>
+    <style>
+        body { background: #0a0a0a; color: #00ff88; font-family: monospace; padding: 20px; }
+        button { background: #00ff88; color: #0a0a0a; border: none; padding: 10px; margin: 5px; cursor: pointer; }
+        .response { background: #1a1a1a; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Direct Lambda Test</h1>
+    <button onclick="testHealth()">Test Health</button>
+    <button onclick="testChallenges()">Test Challenges</button>
+    <div id="response" class="response">Click a button to test</div>
+    
+    <script>
+        const LAMBDA_URL = 'https://6krzqenkvuxsz3ufctwiqipmsi0kzuao.lambda-url.us-east-1.on.aws/';
+        
+        async function testHealth() {
+            try {
+                const response = await fetch(LAMBDA_URL + '/api/health');
+                const data = await response.json();
+                document.getElementById('response').innerHTML = 
+                    'Status: ' + response.status + '<br>' +
+                    'Response: ' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('response').innerHTML = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testChallenges() {
+            try {
+                const response = await fetch(LAMBDA_URL + '/api/challenges');
+                const data = await response.json();
+                document.getElementById('response').innerHTML = 
+                    'Status: ' + response.status + '<br>' +
+                    'Response: ' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('response').innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
