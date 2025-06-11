@@ -1,0 +1,92 @@
+{
+  "devops-bootcamp-challenges": [
+    {
+      "PutRequest": {
+        "Item": {
+          "challengeId": {"S": "welcome-01"},
+          "name": {"S": "Welcome to DevOps Academy"},
+          "description": {"S": "Get familiar with the platform and access your first container"},
+          "category": {"S": "basics"},
+          "level": {"N": "0"},
+          "difficulty": {"S": "beginner"},
+          "points": {"N": "10"},
+          "timeLimit": {"N": "300"},
+          "prerequisites": {"L": []},
+          "dockerImage": {"S": "techies/challenge-welcome:latest"},
+          "validationScript": {"S": "check_file_exists /home/student/.completed"},
+          "hints": {"L": [
+            {"M": {"text": {"S": "Try using the 'ls -la' command"}, "cost": {"N": "2"}}},
+            {"M": {"text": {"S": "Hidden files start with a dot"}, "cost": {"N": "3"}}},
+            {"M": {"text": {"S": "The flag is in your home directory"}, "cost": {"N": "5"}}}
+          ]},
+          "skills": {"SS": ["linux-basics", "file-navigation"]},
+          "successRate": {"N": "95.5"},
+          "averageTime": {"N": "180"},
+          "totalAttempts": {"N": "1250"},
+          "isActive": {"BOOL": true},
+          "createdAt": {"S": "2024-01-01T00:00:00Z"},
+          "updatedAt": {"S": "2024-01-01T00:00:00Z"}
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "challengeId": {"S": "terminal-basics-01"},
+          "name": {"S": "Terminal Navigation Master"},
+          "description": {"S": "Master essential terminal commands: ls, cd, pwd, cat, mkdir, rm"},
+          "category": {"S": "linux"},
+          "level": {"N": "1"},
+          "difficulty": {"S": "beginner"},
+          "points": {"N": "20"},
+          "timeLimit": {"N": "600"},
+          "prerequisites": {"L": [{"S": "welcome-01"}]},
+          "dockerImage": {"S": "techies/challenge-terminal:latest"},
+          "validationScript": {"S": "validate_terminal_tasks.sh"},
+          "tasks": {"L": [
+            {"M": {"task": {"S": "Create directory structure: /home/student/project/src"}, "points": {"N": "5"}}},
+            {"M": {"task": {"S": "Create file: /home/student/project/README.md"}, "points": {"N": "5"}}},
+            {"M": {"task": {"S": "Write your name in the README file"}, "points": {"N": "5"}}},
+            {"M": {"task": {"S": "Set permissions 755 on project directory"}, "points": {"N": "5"}}}
+          ]},
+          "hints": {"L": [
+            {"M": {"text": {"S": "Use 'mkdir -p' for nested directories"}, "cost": {"N": "3"}}},
+            {"M": {"text": {"S": "Use 'echo' or 'cat >' to write to files"}, "cost": {"N": "4"}}},
+            {"M": {"text": {"S": "chmod 755 sets rwxr-xr-x permissions"}, "cost": {"N": "5"}}}
+          ]},
+          "skills": {"SS": ["terminal-navigation", "file-management", "permissions"]},
+          "successRate": {"N": "88.2"},
+          "averageTime": {"N": "420"},
+          "totalAttempts": {"N": "980"},
+          "isActive": {"BOOL": true},
+          "createdAt": {"S": "2024-01-02T00:00:00Z"},
+          "updatedAt": {"S": "2024-01-02T00:00:00Z"}
+        }
+      }
+    },
+    {
+      "PutRequest": {
+        "Item": {
+          "challengeId": {"S": "permissions-01"},
+          "name": {"S": "File Permissions Mastery"},
+          "description": {"S": "Understand and modify file permissions, ownership, and special permissions"},
+          "category": {"S": "linux"},
+          "level": {"N": "2"},
+          "difficulty": {"S": "intermediate"},
+          "points": {"N": "30"},
+          "timeLimit": {"N": "900"},
+          "prerequisites": {"L": [{"S": "terminal-basics-01"}]},
+          "dockerImage": {"S": "techies/challenge-permissions:latest"},
+          "validationScript": {"S": "validate_permissions.sh"},
+          "skills": {"SS": ["permissions", "security", "user-management"]},
+          "successRate": {"N": "75.8"},
+          "averageTime": {"N": "650"},
+          "totalAttempts": {"N": "650"},
+          "isActive": {"BOOL": true},
+          "createdAt": {"S": "2024-01-03T00:00:00Z"},
+          "updatedAt": {"S": "2024-01-03T00:00:00Z"}
+        }
+      }
+    }
+  ]
+}

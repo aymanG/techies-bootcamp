@@ -1,0 +1,28 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:BatchGetItem",
+        "dynamodb:BatchWriteItem"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:*:table/devops-bootcamp-users",
+        "arn:aws:dynamodb:us-east-1:*:table/devops-bootcamp-users/index/*",
+        "arn:aws:dynamodb:us-east-1:*:table/devops-bootcamp-challenges",
+        "arn:aws:dynamodb:us-east-1:*:table/devops-bootcamp-challenges/index/*",
+        "arn:aws:dynamodb:us-east-1:*:table/devops-bootcamp-progress",
+        "arn:aws:dynamodb:us-east-1:*:table/devops-bootcamp-progress/index/*",
+        "arn:aws:dynamodb:us-east-1:*:table/devops-bootcamp-sessions",
+        "arn:aws:dynamodb:us-east-1:*:table/devops-bootcamp-sessions/index/*"
+      ]
+    }
+  ]
+}
