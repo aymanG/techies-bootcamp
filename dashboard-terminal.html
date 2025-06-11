@@ -1,0 +1,205 @@
+<!-- Add this to your dashboard for web terminal support -->
+
+<style>
+    .terminal-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 10000;
+    }
+    
+    .terminal-container {
+        position: relative;
+        width: 90%;
+        height: 90%;
+        margin: 5% auto;
+        background: #000;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 0 50px rgba(0, 255, 136, 0.5);
+    }
+    
+    .terminal-header {
+        background: #1a1a1a;
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #00ff88;
+    }
+    
+    .terminal-title {
+        color: #00ff88;
+        font-weight: bold;
+    }
+    
+    .terminal-close {
+        background: #ff0088;
+        color: #fff;
+        border: none;
+        padding: 5px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    
+    .terminal-iframe {
+        width: 100%;
+        height: calc(100% - 50px);
+        border: none;
+    }
+    
+    .terminal-choice {
+        display: flex;
+        gap: 20px;
+        margin-top: 20px;
+    }
+    
+    .terminal-option {
+        flex: 1;
+        padding: 20px;
+        background: #1a1a1a;
+        border: 2px solid #333;
+        border-radius: 10px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .terminal-option:hover {
+        border-color: #00ff88;
+        transform: translateY(-5px);
+    }
+    
+    .terminal-option h4 {
+        color: #00ff88;
+        margin-bottom: 10px;
+    }
+</style>
+
+<div id="terminalModal" class="terminal-modal">
+    <div class="terminal-container">
+        <div class="terminal-header">
+            <span class="terminal-title">DevOps Bootcamp Terminal</span>
+            <button class="terminal-close" onclick="closeTerminal()">Close</button>
+        </div>
+        <iframe id="terminalFrame" class="terminal-iframe"></iframe>
+    </div>
+</div>
+
+<script>
+function showTerminalChoice(containerIp) {
+    const statusDiv = document.getElementById('containerStatus');
+    const terminalChoiceHTML = `
+        <div class="terminal-choice">
+            <div class="terminal-option" onclick="openWebTerminal('${containerIp}')">
+                <h4>🌐 Web Terminal</h4>
+                <p>Access directly in your browser</p>
+                <p style="color: #888; font-size: 0.9rem;">No SSH client needed!</p>
+            </div>
+            <div class="terminal-option" onclick="showSSHInstructions('${containerIp}')">
+                <h4>🔐 SSH Access</h4>
+                <p>Use your own terminal</p>
+                <p style="color: #888; font-size: 0.9rem;">For advanced users</p>
+            </div>
+        </div>
+    `;
+    
+    statusDiv.insertAdjacentHTML('beforeend', terminalChoiceHTML);
+}
+
+function openWebTerminal(containerIp) {
+    const modal = document.getElementById('terminalModal');
+    const iframe = document.getElementById('terminalFrame');
+    
+    // WeTTY URL
+    iframe.src = `http://${containerIp}:3000`;
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    // Show message about password
+    setTimeout(() => {
+        showMessage('Password: devops123', 'info');
+    }, 2000);
+}
+
+function closeTerminal() {
+    const modal = document.getElementById('terminalModal');
+    const iframe = document.getElementById('terminalFrame');
+    
+    modal.style.display = 'none';
+    iframe.src = '';
+}
+
+function showSSHInstructions(containerIp) {
+    const instructions = `
+        <div style="background: #0a0a0a; padding: 20px; border-radius: 10px; margin-top: 20px;">
+            <h4>SSH Access Instructions</h4>
+            <p>1. Open your terminal application</p>
+            <p>2. Run this command:</p>
+            <div class="ssh-command">
+                <code>ssh student@${containerIp}</code>
+                <button class="copy-button" onclick="navigator.clipboard.writeText('ssh student@${containerIp}')">Copy</button>
+            </div>
+            <p>3. Password: <code>devops123</code></p>
+        </div>
+    `;
+    
+    document.getElementById('containerStatus').insertAdjacentHTML('beforeend', instructions);
+}
+
+// Update the showContainerStatus function to include terminal options
+function showContainerStatus(status) {
+    let statusHTML = `
+        <div class="container-status active" id="containerStatus">
+            <h3>
+                <span class="status-indicator ${status.status.toLowerCase()}"></span>
+                Container Status: ${status.status}
+            </h3>
+    `;
+    
+    if (status.status === 'PROVISIONING') {
+        statusHTML += `
+            <p>Your container is being prepared. This usually takes 30-60 seconds...</p>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+        `;
+    } else if (status.status === 'RUNNING' && status.publicIp) {
+        statusHTML += `
+            <p>✅ Your container is ready!</p>
+            <p><strong>Time remaining:</strong> <span id="timeRemaining">${formatTime(status.expiresIn)}</span></p>
+        `;
+        
+        statusHTML += '</div>';
+        
+        // Insert status first
+        const existingStatus = document.getElementById('containerStatus');
+        if (existingStatus) {
+            existingStatus.outerHTML = statusHTML;
+        } else {
+            const challengesSection = document.querySelector('.challenges-section');
+            challengesSection.insertAdjacentHTML('afterend', statusHTML);
+        }
+        
+        // Then add terminal choice
+        showTerminalChoice(status.publicIp);
+        return;
+    }
+    
+    statusHTML += '</div>';
+    
+    // Insert or update
+    const existingStatus = document.getElementById('containerStatus');
+    if (existingStatus) {
+        existingStatus.outerHTML = statusHTML;
+    } else {
+        const challengesSection = document.querySelector('.challenges-section');
+        challengesSection.insertAdjacentHTML('afterend', statusHTML);
+    }
+}
+</script>

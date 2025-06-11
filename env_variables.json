@@ -1,0 +1,11 @@
+{
+  "Variables": {
+    "CLUSTER_NAME": "devops-bootcamp-challenges",
+    "SESSIONS_TABLE": "devops-bootcamp-sessions",
+    "ECR_REPO_URI": "677381153775.dkr.ecr.us-east-1.amazonaws.com/devops-bootcamp/challenges",
+    "TASK_EXECUTION_ROLE_ARN": "arn:aws:iam::677381153775:role/devops-bootcamp-task-execution-role",
+    "SUBNET_IDS": "subnet-0c44f243a419b41e4,subnet-06265af5fbcdfc133,subnet-0b79e30937bd8a259,subnet-0605fc26cacc88734,subnet-077310d2e58bf9cce,subnet-006f3e1ee0e6cf4d7",
+    "SECURITY_GROUP_ID": "sg-07b2c1196fb935bd7"
+  }
+}
+

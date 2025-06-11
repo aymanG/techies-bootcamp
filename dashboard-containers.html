@@ -1,0 +1,295 @@
+<!-- Add this section to your existing dashboard.html -->
+
+<style>
+    .container-status {
+        background: #1a1a1a;
+        border: 2px solid #333;
+        border-radius: 15px;
+        padding: 2rem;
+        margin-top: 2rem;
+        display: none;
+    }
+    
+    .container-status.active {
+        display: block;
+        animation: slideIn 0.5s;
+    }
+    
+    .ssh-command {
+        background: #0a0a0a;
+        padding: 1rem;
+        border-radius: 8px;
+        font-family: monospace;
+        margin: 1rem 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .copy-button {
+        background: #00ff88;
+        color: #0a0a0a;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    
+    .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        animation: pulse 2s infinite;
+    }
+    
+    .status-indicator.provisioning {
+        background: #ff9800;
+    }
+    
+    .status-indicator.running {
+        background: #00ff88;
+    }
+    
+    .status-indicator.terminated {
+        background: #f44336;
+    }
+    
+    .terminal-preview {
+        background: #000;
+        color: #00ff88;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+        font-family: monospace;
+        min-height: 200px;
+    }
+</style>
+
+<script>
+let activeSession = null;
+let statusCheckInterval = null;
+
+async function startChallenge(challenge) {
+    // Check if user already has an active session
+    if (activeSession) {
+        showMessage('You already have an active container session', 'error');
+        return;
+    }
+    
+    showMessage(`Launching container for: ${challenge.name}`, 'info');
+    
+    try {
+        const response = await fetch(`${API_ENDPOINT}/api/containers`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': authToken
+            },
+            body: JSON.stringify({
+                action: 'launch',
+                userId: currentUser.attributes.sub,
+                challengeId: challenge.id
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            activeSession = data.sessionId;
+            showContainerStatus(data);
+            startStatusChecking();
+        } else {
+            showMessage(data.error || 'Failed to launch container', 'error');
+        }
+    } catch (error) {
+        showMessage('Error launching container: ' + error.message, 'error');
+    }
+}
+
+function showContainerStatus(status) {
+    let statusHTML = `
+        <div class="container-status active" id="containerStatus">
+            <h3>
+                <span class="status-indicator ${status.status.toLowerCase()}"></span>
+                Container Status: ${status.status}
+            </h3>
+    `;
+    
+    if (status.status === 'PROVISIONING') {
+        statusHTML += `
+            <p>Your container is being prepared. This usually takes 30-60 seconds...</p>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+        `;
+    } else if (status.status === 'RUNNING' && status.publicIp) {
+        statusHTML += `
+            <p>✅ Your container is ready!</p>
+            <div class="ssh-command">
+                <code id="sshCommand">${status.sshCommand}</code>
+                <button class="copy-button" onclick="copySSHCommand()">Copy</button>
+            </div>
+            <p><strong>Password:</strong> <code>${status.password}</code></p>
+            <p><strong>Time remaining:</strong> <span id="timeRemaining">${formatTime(status.expiresIn)}</span></p>
+            
+            <div class="terminal-preview">
+                <p>💡 Quick Start:</p>
+                <p>1. Copy the SSH command above</p>
+                <p>2. Open your terminal (Command Prompt on Windows, Terminal on Mac/Linux)</p>
+                <p>3. Paste and run the command</p>
+                <p>4. Enter the password when prompted</p>
+            </div>
+            
+            <button class="btn" style="background: #ff0088; margin-top: 1rem;" onclick="terminateContainer()">
+                Terminate Container
+            </button>
+        `;
+    } else if (status.status === 'TERMINATED') {
+        statusHTML += `
+            <p>Container has been terminated.</p>
+            <button class="btn" onclick="hideContainerStatus()">Close</button>
+        `;
+        activeSession = null;
+        stopStatusChecking();
+    }
+    
+    statusHTML += '</div>';
+    
+    // Insert or update the status section
+    const existingStatus = document.getElementById('containerStatus');
+    if (existingStatus) {
+        existingStatus.outerHTML = statusHTML;
+    } else {
+        const challengesSection = document.querySelector('.challenges-section');
+        challengesSection.insertAdjacentHTML('afterend', statusHTML);
+    }
+}
+
+async function checkContainerStatus() {
+    if (!activeSession) return;
+    
+    try {
+        const response = await fetch(`${API_ENDPOINT}/api/containers`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': authToken
+            },
+            body: JSON.stringify({
+                action: 'status',
+                sessionId: activeSession
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showContainerStatus(data);
+            
+            // Update time remaining
+            if (data.expiresIn > 0) {
+                document.getElementById('timeRemaining').textContent = formatTime(data.expiresIn);
+            }
+        }
+    } catch (error) {
+        console.error('Error checking status:', error);
+    }
+}
+
+function startStatusChecking() {
+    // Check immediately
+    checkContainerStatus();
+    
+    // Then check every 5 seconds
+    statusCheckInterval = setInterval(checkContainerStatus, 5000);
+}
+
+function stopStatusChecking() {
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+    }
+}
+
+async function terminateContainer() {
+    if (!activeSession) return;
+    
+    if (confirm('Are you sure you want to terminate this container?')) {
+        try {
+            const response = await fetch(`${API_ENDPOINT}/api/containers`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': authToken
+                },
+                body: JSON.stringify({
+                    action: 'terminate',
+                    sessionId: activeSession
+                })
+            });
+            
+            if (response.ok) {
+                showMessage('Container terminated', 'success');
+                showContainerStatus({ status: 'TERMINATED' });
+            }
+        } catch (error) {
+            showMessage('Error terminating container', 'error');
+        }
+    }
+}
+
+function copySSHCommand() {
+    const command = document.getElementById('sshCommand').textContent;
+    navigator.clipboard.writeText(command).then(() => {
+        showMessage('SSH command copied to clipboard!', 'success');
+    });
+}
+
+function hideContainerStatus() {
+    const status = document.getElementById('containerStatus');
+    if (status) {
+        status.classList.remove('active');
+        setTimeout(() => status.remove(), 500);
+    }
+}
+
+function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+}
+
+// Update the createChallengeCard function to launch containers
+function createChallengeCard(challenge) {
+    const card = document.createElement('div');
+    card.className = 'challenge-card';
+    
+    // Check if completed (mock for now)
+    const isCompleted = Math.random() > 0.7;
+    const isLocked = challenge.level > 2 && !isCompleted;
+    
+    if (isCompleted) card.classList.add('completed');
+    if (isLocked) card.classList.add('locked');
+    
+    card.innerHTML = `
+        <div class="challenge-header">
+            <span class="challenge-level">Level ${challenge.level}</span>
+            <span class="challenge-points">${isCompleted ? '✓' : ''} ${challenge.points} pts</span>
+        </div>
+        <h3 class="challenge-title">${challenge.name}</h3>
+        <p class="challenge-description">${challenge.description}</p>
+        <span class="difficulty-badge difficulty-${challenge.difficulty}">${challenge.difficulty}</span>
+        ${isLocked ? '<div style="margin-top: 1rem; color: #888;">🔒 Complete prerequisites first</div>' : ''}
+        ${!isLocked && !isCompleted ? '<button class="btn" style="margin-top: 1rem; width: 100%;">Start Challenge</button>' : ''}
+    `;
+    
+    if (!isLocked && !isCompleted) {
+        card.querySelector('button').onclick = () => startChallenge(challenge);
+    }
+    
+    return card;
+}
+</script>

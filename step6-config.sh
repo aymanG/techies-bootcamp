@@ -9,8 +9,10 @@ export CLIENT_ID=1ldgvhnkgp4qbpmj7b27a235oe
 export CLIENT_SECRET=1hp7lff8l31ppgbb5r3hb0ar0ahhs55artr6dje6dqssdgtvrsro
 export COGNITO_DOMAIN=https://cognito-idp.us-east-1.amazonaws.com
 export REGION=us-east-1
+export API_GATEWAY="devops-bootcamp-api"
 export AUTH_TEST_URL=https://d1t1et5tjvep2.cloudfront.net/auth-test.html
 export LAMBDA_ROLE_ARN=arn:aws:iam::677381153775:role/devops-bootcamp-lambda-role
+export LAMBDA_ROLE_NAME="devops-bootcamp-lambda-role"
 export LAMBDA_ROLE_ARN=arn:aws:iam::677381153775:role/devops-bootcamp-lambda-role
 export LAMBDA_ARN=arn:aws:lambda:us-east-1:677381153775:function:devops-bootcamp-api
 export LAMBDA_FUNCTION_NAME=devops-bootcamp-api
@@ -26,3 +28,14 @@ export CHALLENGES_TABLE=devops-bootcamp-challenges
 export PROGRESS_TABLE=devops-bootcamp-progress
 export SESSIONS_TABLE=devops-bootcamp-sessions
 export DYNAMODB_STATUS="Production Ready"
+export ECR_REPO_URI=677381153775.dkr.ecr.us-east-1.amazonaws.com/devops-bootcamp/challenges
+export CLUSTER_NAME="devops-bootcamp-challenges"
+export EXECUTION_ROLE_ARN="arn:aws:iam::677381153775:role/devops-bootcamp-task-execution-role"
+export CONTAINER_LAMBDA_ARN="arn:aws:lambda:us-east-1:677381153775:function:devops-bootcamp-containers"
+export API_ID=$(aws apigateway get-rest-apis --query "items[?name=='devops-bootcamp-api'].id" --output text)
+export API_RESOURCE_ID=$(aws apigateway get-resources --rest-api-id $API_ID --query "items[?path=='/api'].id" --output text)
+export REGION="us-east-1"
+export API_STAGE="prod"
+export LAMBDA_FUNCTION_ARN=$(aws lambda get-function --function-name devops-bootcamp-containers --query "Configuration.FunctionArn" --output text)
+export ECR_REPO_NAME="devops-bootcamp/challenges"
+export CONTAINERS_ID=7ir2nu
