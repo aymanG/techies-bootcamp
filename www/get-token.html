@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Get JWT Token</title>
+    <style>
+        body {
+            background: #0a0a0a;
+            color: #00ff88;
+            font-family: monospace;
+            padding: 20px;
+        }
+        .token-box {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+            word-break: break-all;
+            margin: 20px 0;
+        }
+        button {
+            background: #00ff88;
+            color: #0a0a0a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .warning {
+            color: #ff9800;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Get Your JWT Token</h1>
+    <p class="warning">⚠️ First login at: <a href="/auth-test.html" style="color: #00ff88">/auth-test.html</a></p>
+    
+    <button onclick="getToken()">Get My Token</button>
+    <button onclick="copyToken()">Copy Token</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        // WILL BE REPLACED
+        const CLIENT_ID = '6qgl1afuotr6u1pa4n2kfnrcml';
+        
+        let currentToken = null;
+        
+        function getToken() {
+            const lastUser = localStorage.getItem(`CognitoIdentityServiceProvider.${CLIENT_ID}.LastAuthUser`);
+            
+            if (!lastUser) {
+                document.getElementById('result').innerHTML = '<div class="token-box" style="border: 1px solid #ff0088;">Not logged in! Please login first.</div>';
+                return;
+            }
+            
+            const idToken = localStorage.getItem(`CognitoIdentityServiceProvider.${CLIENT_ID}.${lastUser}.idToken`);
+            
+            if (idToken) {
+                currentToken = idToken;
+                
+                // Decode token to show info
+                const parts = idToken.split('.');
+                const payload = JSON.parse(atob(parts[1]));
+                
+                document.getElementById('result').innerHTML = `
+                    <div class="token-box">
+                        <h3>Token Info:</h3>
+                        <p>Email: ${payload.email}</p>
+                        <p>User ID: ${payload.sub}</p>
+                        <p>Expires: ${new Date(payload.exp * 1000).toLocaleString()}</p>
+                    </div>
+                    <div class="token-box" style="font-size: 0.8rem;">
+                        <h3>JWT Token (click Copy Token button):</h3>
+                        <div style="max-height: 200px; overflow-y: auto;">${idToken}</div>
+                    </div>
+                `;
+            } else {
+                document.getElementById('result').innerHTML = '<div class="token-box" style="border: 1px solid #ff0088;">No token found!</div>';
+            }
+        }
+        
+        function copyToken() {
+            if (currentToken) {
+                navigator.clipboard.writeText(currentToken).then(() => {
+                    alert('Token copied to clipboard!');
+                });
+            } else {
+                alert('Get token first!');
+            }
+        }
+    </script>
+</body>
+</html>

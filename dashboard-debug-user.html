@@ -1,0 +1,33 @@
+<script>
+// Add this debug function to your dashboard
+function debugUserObject() {
+    const cognitoUser = userPool.getCurrentUser();
+    console.log('Cognito User Object:', cognitoUser);
+    
+    if (cognitoUser) {
+        cognitoUser.getSession((err, session) => {
+            if (!err && session.isValid()) {
+                console.log('Session:', session);
+                
+                // Get ID token payload
+                const idToken = session.getIdToken();
+                console.log('ID Token:', idToken);
+                console.log('ID Token Payload:', idToken.payload);
+                console.log('User ID (sub):', idToken.payload.sub);
+                
+                // Get attributes
+                cognitoUser.getUserAttributes((err, attributes) => {
+                    if (!err) {
+                        console.log('User Attributes:', attributes);
+                        const sub = attributes.find(attr => attr.Name === 'sub');
+                        console.log('Sub from attributes:', sub);
+                    }
+                });
+            }
+        });
+    }
+}
+
+// Call this when logged in
+debugUserObject();
+</script>

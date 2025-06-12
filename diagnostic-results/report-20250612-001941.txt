@@ -1,0 +1,10 @@
+[PASS] S3 bucket exists
+[PASS] CloudFront distribution
+[FAIL] User pool exists: None
+[PASS] App client exists
+[PASS] Main Lambda exists
+[PASS] API deployment
+[PASS] Table devops-bootcamp-users
+[PASS] Table devops-bootcamp-challenges
+[PASS] Table devops-bootcamp-progress
+[PASS] Table devops-bootcamp-sessions

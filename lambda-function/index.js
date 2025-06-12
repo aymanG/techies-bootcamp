@@ -7,13 +7,33 @@ const CHALLENGES_TABLE = process.env.CHALLENGES_TABLE || 'devops-bootcamp-challe
 const PROGRESS_TABLE = process.env.PROGRESS_TABLE || 'devops-bootcamp-progress';
 const SESSIONS_TABLE = process.env.SESSIONS_TABLE || 'devops-bootcamp-sessions';
 
-// CORS headers
-const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+exports.handler = async (event) => {
+    // CORS headers
+    const headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+    };
+
+    if (event.httpMethod === 'OPTIONS') {
+        // Respond to preflight request
+        return {
+            statusCode: 200,
+            headers: headers
+        };
+    }
+
+    // Your actual API logic (GET, POST, etc.)
+    const response = {
+        statusCode: 200,
+        body: JSON.stringify({ message: 'Success' }),
+        headers: headers
+    };
+
+    return response;
 };
+
 
 exports.handler = async (event) => {
     console.log('Event:', JSON.stringify(event, null, 2));

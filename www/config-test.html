@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Config Test</title>
+    <style>
+        body { background: #0a0a0a; color: #00ff88; font-family: monospace; padding: 20px; }
+        .config { background: #1a1a1a; padding: 20px; border-radius: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Configuration Test</h1>
+    <div class="config">
+        <h3>Values in HTML:</h3>
+        <p>API_ENDPOINT: https://hdxbz1zbx4.execute-api.us-east-1.amazonaws.com/prod</p>
+        <p>USER_POOL_ID: us-east-1_sgcR0nyyj</p>
+        <p>CLIENT_ID: 6qgl1afuotr6u1pa4n2kfnrcml</p>
+    </div>
+    <div class="config">
+        <h3>JavaScript Test:</h3>
+        <p id="test">Testing...</p>
+    </div>
+    <script>
+        // Test values
+        const config = {
+            API_ENDPOINT: 'https://hdxbz1zbx4.execute-api.us-east-1.amazonaws.com/prod',
+            USER_POOL_ID: 'us-east-1_sgcR0nyyj',
+            CLIENT_ID: '6qgl1afuotr6u1pa4n2kfnrcml'
+        };
+        
+        document.getElementById('test').innerHTML = 
+            'API: ' + (config.API_ENDPOINT.includes('YOUR_') ? 'NOT SET' : 'OK') + '<br>' +
+            'Pool: ' + (config.USER_POOL_ID.includes('YOUR_') ? 'NOT SET' : 'OK') + '<br>' +
+            'Client: ' + (config.CLIENT_ID.includes('YOUR_') ? 'NOT SET' : 'OK');
+    </script>
+</body>
+</html>

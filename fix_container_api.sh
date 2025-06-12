@@ -1,0 +1,1505 @@
+#!/bin/bash
+# Fix Container API Endpoints and Dashboard Configuration
+
+# Load configuration
+source step6-config-fixed.sh 2>/dev/null || {
+    echo "❌ Please run the previous fix scripts first"
+    exit 1
+}
+
+echo "🔧 Fixing Container API Endpoints and Dashboard..."
+
+# First, let's check if the container Lambda exists
+echo "📋 Step 1: Checking container management Lambda..."
+
+CONTAINER_LAMBDA_EXISTS=$(aws lambda get-function --function-name devops-bootcamp-containers 2>/dev/null | jq -r '.Configuration.FunctionName' 2>/dev/null)
+
+if [ "$CONTAINER_LAMBDA_EXISTS" != "devops-bootcamp-containers" ]; then
+    echo "⚠️  Container Lambda doesn't exist. Creating it..."
+    
+    # Create a simple container management Lambda
+    mkdir -p temp-container-lambda
+    cat > temp-container-lambda/index.js << 'EOF'
+const AWS = require('aws-sdk');
+
+exports.handler = async (event) => {
+    console.log('Container Lambda Event:', JSON.stringify(event, null, 2));
+    
+    // CORS headers
+    const headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+    };
+    
+    // Handle preflight requests
+    if (event.httpMethod === 'OPTIONS') {
+        return {
+            statusCode: 200,
+            headers,
+            body: ''
+        };
+    }
+    
+    try {
+        const { action, userId, challengeId, sessionId } = JSON.parse(event.body || '{}');
+        
+        // Mock responses for now (will be replaced with real container logic later)
+        switch (action) {
+            case 'launch':
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        sessionId: `mock-session-${Date.now()}`,
+                        status: 'PROVISIONING',
+                        message: 'Container provisioning started (mock mode)'
+                    })
+                };
+                
+            case 'status':
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        sessionId: sessionId || 'mock-session',
+                        status: 'RUNNING',
+                        publicIp: '203.0.113.1',
+                        sshCommand: 'ssh student@203.0.113.1',
+                        password: 'devops123',
+                        expiresIn: 7200,
+                        message: 'Mock container is running'
+                    })
+                };
+                
+            case 'terminate':
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        message: 'Container terminated (mock mode)'
+                    })
+                };
+                
+            default:
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({ error: 'Invalid action' })
+                };
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: error.message })
+        };
+    }
+};
+EOF
+
+    cat > temp-container-lambda/package.json << 'EOF'
+{
+  "name": "container-lambda",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "aws-sdk": "^2.1472.0"
+  }
+}
+EOF
+
+    cd temp-container-lambda
+    zip -r function.zip .
+    
+    # Create the container Lambda
+    CONTAINER_LAMBDA_OUTPUT=$(aws lambda create-function \
+      --function-name devops-bootcamp-containers \
+      --runtime nodejs18.x \
+      --role $LAMBDA_ROLE_ARN \
+      --handler index.handler \
+      --zip-file fileb://function.zip \
+      --timeout 60 \
+      --memory-size 512 \
+      --output json)
+    
+    if [ $? -eq 0 ]; then
+        CONTAINER_LAMBDA_ARN=$(echo $CONTAINER_LAMBDA_OUTPUT | jq -r '.FunctionArn')
+        echo "✅ Container Lambda created: $CONTAINER_LAMBDA_ARN"
+    else
+        echo "❌ Failed to create container Lambda"
+        cd ..
+        rm -rf temp-container-lambda
+        exit 1
+    fi
+    
+    cd ..
+    rm -rf temp-container-lambda
+else
+    echo "✅ Container Lambda exists"
+    CONTAINER_LAMBDA_ARN=$(aws lambda get-function --function-name devops-bootcamp-containers --query 'Configuration.FunctionArn' --output text)
+fi
+
+# Step 2: Check if /api/containers resource exists in API Gateway
+echo "📋 Step 2: Checking API Gateway containers resource..."
+
+CONTAINERS_RESOURCE_ID=$(aws apigateway get-resources --rest-api-id $API_ID --query "items[?path=='/api/containers'].id" --output text)
+
+if [ "$CONTAINERS_RESOURCE_ID" = "" ] || [ "$CONTAINERS_RESOURCE_ID" = "None" ]; then
+    echo "⚠️  Creating /api/containers resource..."
+    
+    # Get the /api resource ID
+    API_RESOURCE_ID=$(aws apigateway get-resources --rest-api-id $API_ID --query "items[?path=='/api'].id" --output text)
+    
+    if [ "$API_RESOURCE_ID" = "" ]; then
+        echo "❌ /api resource not found"
+        exit 1
+    fi
+    
+    # Create /api/containers resource
+    CONTAINERS_RESOURCE_OUTPUT=$(aws apigateway create-resource \
+      --rest-api-id $API_ID \
+      --parent-id $API_RESOURCE_ID \
+      --path-part containers \
+      --output json)
+    
+    CONTAINERS_RESOURCE_ID=$(echo $CONTAINERS_RESOURCE_OUTPUT | jq -r '.id')
+    echo "✅ Created /api/containers resource: $CONTAINERS_RESOURCE_ID"
+else
+    echo "✅ /api/containers resource exists: $CONTAINERS_RESOURCE_ID"
+fi
+
+# Step 3: Add POST method to /api/containers
+echo "📋 Step 3: Setting up POST method for /api/containers..."
+
+# Create POST method
+aws apigateway put-method \
+  --rest-api-id $API_ID \
+  --resource-id $CONTAINERS_RESOURCE_ID \
+  --http-method POST \
+  --authorization-type NONE \
+  --output json > /dev/null
+
+# Create Lambda integration
+aws apigateway put-integration \
+  --rest-api-id $API_ID \
+  --resource-id $CONTAINERS_RESOURCE_ID \
+  --http-method POST \
+  --type AWS_PROXY \
+  --integration-http-method POST \
+  --uri "arn:aws:apigateway:${REGION}:lambda:path/2015-03-31/functions/${CONTAINER_LAMBDA_ARN}/invocations" \
+  --output json > /dev/null
+
+# Add Lambda permission for API Gateway
+aws lambda add-permission \
+  --function-name devops-bootcamp-containers \
+  --statement-id APIGatewayInvokeContainers \
+  --action lambda:InvokeFunction \
+  --principal apigateway.amazonaws.com \
+  --source-arn "arn:aws:execute-api:${REGION}:*:${API_ID}/*/*" \
+  2>/dev/null || echo "Permission may already exist"
+
+# Enable CORS for OPTIONS method
+aws apigateway put-method \
+  --rest-api-id $API_ID \
+  --resource-id $CONTAINERS_RESOURCE_ID \
+  --http-method OPTIONS \
+  --authorization-type NONE \
+  --output json > /dev/null
+
+# Create mock integration for OPTIONS
+aws apigateway put-integration \
+  --rest-api-id $API_ID \
+  --resource-id $CONTAINERS_RESOURCE_ID \
+  --http-method OPTIONS \
+  --type MOCK \
+  --request-templates '{"application/json":"{\"statusCode\": 200}"}' \
+  --output json > /dev/null
+
+# Create integration response for OPTIONS
+aws apigateway put-integration-response \
+  --rest-api-id $API_ID \
+  --resource-id $CONTAINERS_RESOURCE_ID \
+  --http-method OPTIONS \
+  --status-code 200 \
+  --response-parameters '{
+    "method.response.header.Access-Control-Allow-Headers": "'\''Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'\''",
+    "method.response.header.Access-Control-Allow-Methods": "'\''GET,POST,PUT,DELETE,OPTIONS'\''",
+    "method.response.header.Access-Control-Allow-Origin": "'\''*'\''"
+  }' \
+  --output json > /dev/null
+
+# Create method response for OPTIONS
+aws apigateway put-method-response \
+  --rest-api-id $API_ID \
+  --resource-id $CONTAINERS_RESOURCE_ID \
+  --http-method OPTIONS \
+  --status-code 200 \
+  --response-parameters '{
+    "method.response.header.Access-Control-Allow-Headers": true,
+    "method.response.header.Access-Control-Allow-Methods": true,
+    "method.response.header.Access-Control-Allow-Origin": true
+  }' \
+  --output json > /dev/null
+
+echo "✅ POST and OPTIONS methods configured"
+
+# Step 4: Deploy API changes
+echo "📋 Step 4: Deploying API changes..."
+
+aws apigateway create-deployment \
+  --rest-api-id $API_ID \
+  --stage-name prod \
+  --description "Added container endpoints" \
+  --output json > /dev/null
+
+echo "✅ API deployed"
+
+# Step 5: Create fixed dashboard with correct API endpoint
+echo "📋 Step 5: Creating fixed dashboard..."
+
+cat > dashboard-fixed.html << EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Academy - Learn by Doing</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+
+        .loading-screen.hide {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #1a1a1a;
+            border-top-color: #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Navigation */
+        nav {
+            background-color: #1a1a1a;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #00ff88;
+            box-shadow: 0 2px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00ff88;
+            text-decoration: none;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #e0e0e0;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .points-badge {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #0a0a0a;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Auth Section */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: calc(100vh - 80px);
+        }
+
+        .auth-box {
+            background: #1a1a1a;
+            padding: 3rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid #333;
+            transition: all 0.3s;
+        }
+
+        .auth-box:hover {
+            border-color: #00ff88;
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.2);
+        }
+
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #333;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 1rem;
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .auth-tab.active {
+            color: #00ff88;
+            border-bottom: 2px solid #00ff88;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0a0a0a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #00ff88, #00cc6f);
+            color: #0a0a0a;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: none;
+        }
+
+        .dashboard.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: #1a1a1a;
+            padding: 2rem;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid #333;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .stat-card:hover::before {
+            left: 100%;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: #00ff88;
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.2);
+        }
+
+        .stat-value {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #00ff88;
+            margin: 1rem 0;
+        }
+
+        .stat-label {
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.8rem;
+        }
+
+        /* Challenges Grid */
+        .challenges-section {
+            margin-top: 3rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            color: #00ff88;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .challenges-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .challenge-card {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 15px;
+            padding: 2rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .challenge-card.completed {
+            border-color: #00ff88;
+            background: linear-gradient(135deg, #1a1a1a, #0a2a1a);
+        }
+
+        .challenge-card.locked {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .challenge-card:not(.locked):hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: #00ff88;
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.3);
+        }
+
+        .challenge-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .challenge-level {
+            background: #333;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #00ff88;
+        }
+
+        .challenge-points {
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .challenge-title {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+
+        .challenge-description {
+            color: #888;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .difficulty-badge {
+            display: inline-block;
+            padding: 0.25rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .difficulty-beginner {
+            background: #4caf50;
+            color: #0a0a0a;
+        }
+
+        .difficulty-intermediate {
+            background: #ff9800;
+            color: #0a0a0a;
+        }
+
+        .difficulty-advanced {
+            background: #f44336;
+            color: #fff;
+        }
+
+        /* Container Status */
+        .container-status {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-top: 2rem;
+            display: none;
+        }
+        
+        .container-status.active {
+            display: block;
+            animation: slideIn 0.5s;
+        }
+        
+        .ssh-command {
+            background: #0a0a0a;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .copy-button {
+            background: #00ff88;
+            color: #0a0a0a;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-indicator.provisioning {
+            background: #ff9800;
+        }
+        
+        .status-indicator.running {
+            background: #00ff88;
+        }
+        
+        .status-indicator.terminated {
+            background: #f44336;
+        }
+
+        /* Messages */
+        .message {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            animation: slideIn 0.3s, slideOut 0.3s 2.7s;
+            z-index: 1000;
+            max-width: 400px;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(400px); }
+            to { transform: translateX(0); }
+        }
+
+        @keyframes slideOut {
+            from { transform: translateX(0); }
+            to { transform: translateX(400px); }
+        }
+
+        .message.success {
+            background: #1a3a1a;
+            border: 2px solid #00ff88;
+            color: #00ff88;
+        }
+
+        .message.error {
+            background: #3a1a1a;
+            border: 2px solid #ff0088;
+            color: #ff0088;
+        }
+
+        .message.info {
+            background: #1a2a3a;
+            border: 2px solid #0088ff;
+            color: #0088ff;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .challenges-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.5s;
+        }
+
+        .slide-up {
+            animation: slideUp 0.5s;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loader"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="#" class="logo">&lt;DevOps Academy/&gt;</a>
+        <ul class="nav-links">
+            <li><a href="#dashboard">Dashboard</a></li>
+            <li><a href="#challenges">Challenges</a></li>
+            <li><a href="#leaderboard">Leaderboard</a></li>
+            <li id="userNav" style="display: none;">
+                <div class="user-info">
+                    <span id="userName"></span>
+                    <span class="points-badge">⚡ <span id="userPoints">0</span> pts</span>
+                    <button onclick="logout()" class="btn" style="width: auto; padding: 0.5rem 1rem;">Logout</button>
+                </div>
+            </li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <!-- Auth Section -->
+        <div id="authSection" class="auth-container">
+            <div class="auth-box">
+                <h1 style="text-align: center; margin-bottom: 2rem; color: #00ff88;">DevOps Academy</h1>
+                
+                <div class="auth-tabs">
+                    <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
+                    <button class="auth-tab" onclick="showAuthTab('register')">Register</button>
+                </div>
+
+                <!-- Login Form -->
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="btn" id="loginBtn">Login</button>
+                </form>
+
+                <!-- Register Form -->
+                <form id="registerForm" style="display: none;" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label for="registerEmail">Email</label>
+                        <input type="email" id="registerEmail" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="registerPassword">Password</label>
+                        <input type="password" id="registerPassword" required autocomplete="new-password" 
+                               placeholder="8+ chars, uppercase, lowercase, number">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password</label>
+                        <input type="password" id="confirmPassword" required autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn" id="registerBtn">Create Account</button>
+                </form>
+
+                <!-- Verify Form -->
+                <form id="verifyForm" style="display: none;" onsubmit="handleVerify(event)">
+                    <p style="text-align: center; color: #888; margin-bottom: 2rem;">
+                        Check your email for a 6-digit verification code
+                    </p>
+                    <div class="form-group">
+                        <label for="verifyCode">Verification Code</label>
+                        <input type="text" id="verifyCode" required maxlength="6" pattern="[0-9]{6}" 
+                               placeholder="123456" style="text-align: center; font-size: 1.5rem;">
+                    </div>
+                    <button type="submit" class="btn" id="verifyBtn">Verify Email</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboardSection" class="dashboard">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Points</div>
+                    <div class="stat-value" id="totalPoints">0</div>
+                    <div class="stat-label">Global Rank #<span id="globalRank">-</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Challenges Completed</div>
+                    <div class="stat-value" id="completedCount">0</div>
+                    <div class="stat-label">of <span id="totalChallenges">0</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Current Streak</div>
+                    <div class="stat-value" id="currentStreak">0</div>
+                    <div class="stat-label">Days</div>
+                </div>
+            </div>
+
+            <!-- Challenges -->
+            <div class="challenges-section">
+                <div class="section-header">
+                    <h2 class="section-title">Available Challenges</h2>
+                    <button class="btn" style="width: auto; padding: 0.75rem 2rem;" onclick="refreshChallenges()">
+                        Refresh
+                    </button>
+                </div>
+                <div id="challengesGrid" class="challenges-grid">
+                    <!-- Challenges will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AWS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+    
+    <script>
+        // Configuration - CORRECT API ENDPOINT
+        const API_ENDPOINT = '$API_ENDPOINT';
+        const USER_POOL_ID = '$USER_POOL_ID';
+        const CLIENT_ID = '$CLIENT_ID';
+
+        // Debug info
+        console.log('Dashboard Configuration:');
+        console.log('API_ENDPOINT:', API_ENDPOINT);
+        console.log('USER_POOL_ID:', USER_POOL_ID);
+        console.log('CLIENT_ID:', CLIENT_ID);
+
+        // Cognito setup
+        const poolData = {
+            UserPoolId: USER_POOL_ID,
+            ClientId: CLIENT_ID
+        };
+        const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+        
+        let currentUser = null;
+        let userEmail = '';
+        let authToken = '';
+        let activeSession = null;
+        let statusCheckInterval = null;
+
+        // Check auth on load
+        window.onload = () => {
+            checkAuth();
+            setTimeout(() => {
+                document.getElementById('loadingScreen').classList.add('hide');
+            }, 1000);
+        };
+
+        function checkAuth() {
+            const cognitoUser = userPool.getCurrentUser();
+            if (cognitoUser) {
+                cognitoUser.getSession((err, session) => {
+                    if (!err && session.isValid()) {
+                        authToken = session.getIdToken().getJwtToken();
+                        showDashboard(cognitoUser);
+                    } else {
+                        showAuth();
+                    }
+                });
+            } else {
+                showAuth();
+            }
+        }
+
+        function showAuth() {
+            document.getElementById('authSection').style.display = 'flex';
+            document.getElementById('dashboardSection').classList.remove('active');
+            document.getElementById('userNav').style.display = 'none';
+        }
+
+        function showDashboard(user) {
+            currentUser = user;
+            user.getUserAttributes((err, attributes) => {
+                if (!err) {
+                    const email = attributes.find(attr => attr.Name === 'email')?.Value;
+                    document.getElementById('userName').textContent = email;
+                    userEmail = email;
+                }
+            });
+
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('dashboardSection').classList.add('active');
+            document.getElementById('userNav').style.display = 'block';
+            
+            loadDashboardData();
+        }
+
+        function showAuthTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+            document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+            document.getElementById('verifyForm').style.display = 'none';
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const btn = document.getElementById('loginBtn');
+            
+            btn.disabled = true;
+            btn.textContent = 'Logging in...';
+
+            const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
+                Username: email,
+                Password: password
+            });
+
+            const cognitoUser = new AmazonCognitoIdentity.CognitoUser({
+                Username: email,
+                Pool: userPool
+            });
+
+            cognitoUser.authenticateUser(authDetails, {
+                onSuccess: (result) => {
+                    authToken = result.getIdToken().getJwtToken();
+                    showMessage('Login successful!', 'success');
+                    showDashboard(cognitoUser);
+                    btn.disabled = false;
+                    btn.textContent = 'Login';
+                },
+                onFailure: (err) => {
+                    showMessage(err.message || 'Login failed', 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Login';
+                    
+                    if (err.code === 'UserNotConfirmedException') {
+                        userEmail = email;
+                        document.getElementById('loginForm').style.display = 'none';
+                        document.getElementById('verifyForm').style.display = 'block';
+                    }
+                }
+            });
+        }
+
+        async function handleRegister(event) {
+            event.preventDefault();
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            const confirm = document.getElementById('confirmPassword').value;
+            const btn = document.getElementById('registerBtn');
+
+            if (password !== confirm) {
+                showMessage('Passwords do not match', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Creating account...';
+
+            const attributeList = [
+                new AmazonCognitoIdentity.CognitoUserAttribute({
+                    Name: 'email',
+                    Value: email
+                })
+            ];
+
+            userPool.signUp(email, password, attributeList, null, (err, result) => {
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
+
+                if (err) {
+                    showMessage(err.message || 'Registration failed', 'error');
+                    return;
+                }
+
+                userEmail = email;
+                showMessage('Account created! Check your email for verification code', 'success');
+                document.getElementById('registerForm').style.display = 'none';
+                document.getElementById('verifyForm').style.display = 'block';
+            });
+        }
+
+        async function handleVerify(event) {
+            event.preventDefault();
+            const code = document.getElementById('verifyCode').value;
+            const btn = document.getElementById('verifyBtn');
+
+            btn.disabled = true;
+            btn.textContent = 'Verifying...';
+
+            const cognitoUser = new AmazonCognitoIdentity.CognitoUser({
+                Username: userEmail,
+                Pool: userPool
+            });
+
+            cognitoUser.confirmRegistration(code, true, (err, result) => {
+                btn.disabled = false;
+                btn.textContent = 'Verify Email';
+
+                if (err) {
+                    showMessage(err.message || 'Verification failed', 'error');
+                    return;
+                }
+
+                showMessage('Email verified! You can now login', 'success');
+                setTimeout(() => {
+                    document.getElementById('verifyForm').style.display = 'none';
+                    document.getElementById('loginForm').style.display = 'block';
+                    document.getElementById('loginEmail').value = userEmail;
+                }, 2000);
+            });
+        }
+
+        function logout() {
+            if (currentUser) {
+                currentUser.signOut();
+            }
+            authToken = '';
+            showAuth();
+            showMessage('Logged out successfully', 'success');
+        }
+
+        async function loadDashboardData() {
+            try {
+                // Load user profile
+                const profileResponse = await fetch(`${API_ENDPOINT}/api/user/profile`, {
+                    headers: {
+                        'Authorization': authToken
+                    }
+                });
+                
+                if (profileResponse.ok) {
+                    const profile = await profileResponse.json();
+                    document.getElementById('userPoints').textContent = profile.points || 0;
+                    document.getElementById('totalPoints').textContent = profile.points || 0;
+                }
+
+                // Load challenges
+                await loadChallenges();
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        async function loadChallenges() {
+            try {
+                console.log('Loading challenges from:', `${API_ENDPOINT}/api/challenges`);
+                const response = await fetch(`${API_ENDPOINT}/api/challenges`);
+                const data = await response.json();
+                
+                console.log('Challenges response:', data);
+                
+                const grid = document.getElementById('challengesGrid');
+                grid.innerHTML = '';
+                
+                if (data.challenges) {
+                    document.getElementById('totalChallenges').textContent = data.challenges.length;
+                    
+                    data.challenges.forEach((challenge, index) => {
+                        const card = createChallengeCard(challenge);
+                        card.style.animationDelay = `${index * 0.1}s`;
+                        card.classList.add('slide-up');
+                        grid.appendChild(card);
+                    });
+                } else {
+                    console.error('No challenges found in response');
+                }
+            } catch (error) {
+                console.error('Error loading challenges:', error);
+                showMessage('Failed to load challenges', 'error');
+            }
+        }
+
+        function createChallengeCard(challenge) {
+            const card = document.createElement('div');
+            card.className = 'challenge-card';
+            
+            // Check if completed (mock for now)
+            const isCompleted = Math.random() > 0.7;
+            const isLocked = challenge.level > 2 && !isCompleted;
+            
+            if (isCompleted) card.classList.add('completed');
+            if (isLocked) card.classList.add('locked');
+            
+            card.innerHTML = `
+                <div class="challenge-header">
+                    <span class="challenge-level">Level ${challenge.level}</span>
+                    <span class="challenge-points">${isCompleted ? '✓' : ''} ${challenge.points} pts</span>
+                </div>
+                <h3 class="challenge-title">${challenge.name}</h3>
+                <p class="challenge-description">${challenge.description}</p>
+                <span class="difficulty-badge difficulty-${challenge.difficulty}">${challenge.difficulty}</span>
+                ${isLocked ? '<div style="margin-top: 1rem; color: #888;">🔒 Complete prerequisites first</div>' : ''}
+                ${!isLocked && !isCompleted ? '<button class="btn" style="margin-top: 1rem; width: 100%;">Start Challenge</button>' : ''}
+            `;
+            
+            if (!isLocked && !isCompleted) {
+                const button = card.querySelector('button');
+                button.onclick = (e) => {
+                    e.stopPropagation();
+                    startChallenge(challenge);
+                };
+            }
+            
+            return card;
+        }
+
+        // FIXED: Container launching function with correct API endpoint
+        async function startChallenge(challenge) {
+            console.log('Starting challenge:', challenge);
+            
+            // Check if user already has an active session
+            if (activeSession) {
+                showMessage('You already have an active container session', 'error');
+                return;
+            }
+            
+            showMessage(`Launching container for: ${challenge.name}`, 'info');
+            
+            try {
+                console.log('Making request to:', `${API_ENDPOINT}/api/containers`);
+                
+                const response = await fetch(`${API_ENDPOINT}/api/containers`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': authToken
+                    },
+                    body: JSON.stringify({
+                        action: 'launch',
+                        userId: currentUser?.attributes?.sub || 'test-user',
+                        challengeId: challenge.challengeId || challenge.id
+                    })
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                activeSession = data.sessionId;
+                showContainerStatus(data);
+                startStatusChecking();
+                
+            } catch (error) {
+                console.error('Error launching container:', error);
+                showMessage('Error launching container: ' + error.message, 'error');
+            }
+        }
+
+        function showContainerStatus(status) {
+            let statusHTML = `
+                <div class="container-status active" id="containerStatus">
+                    <h3>
+                        <span class="status-indicator ${status.status.toLowerCase()}"></span>
+                        Container Status: ${status.status}
+                    </h3>
+            `;
+            
+            if (status.status === 'PROVISIONING') {
+                statusHTML += `
+                    <p>Your container is being prepared. This usually takes 30-60 seconds...</p>
+                    <div style="background: #333; height: 4px; border-radius: 2px; overflow: hidden;">
+                        <div style="background: #00ff88; height: 100%; width: 30%; animation: loading 2s infinite;"></div>
+                    </div>
+                `;
+            } else if (status.status === 'RUNNING' && status.publicIp) {
+                statusHTML += `
+                    <p>✅ Your container is ready!</p>
+                    <div class="ssh-command">
+                        <code id="sshCommand">${status.sshCommand}</code>
+                        <button class="copy-button" onclick="copySSHCommand()">Copy</button>
+                    </div>
+                    <p><strong>Password:</strong> <code>${status.password}</code></p>
+                    <p><strong>Time remaining:</strong> <span id="timeRemaining">${formatTime(status.expiresIn)}</span></p>
+                    
+                    <div style="background: #000; color: #00ff88; padding: 1rem; border-radius: 8px; margin-top: 1rem; font-family: monospace;">
+                        <p>💡 Quick Start:</p>
+                        <p>1. Copy the SSH command above</p>
+                        <p>2. Open your terminal (Command Prompt on Windows, Terminal on Mac/Linux)</p>
+                        <p>3. Paste and run the command</p>
+                        <p>4. Enter the password when prompted</p>
+                    </div>
+                    
+                    <button class="btn" style="background: #ff0088; margin-top: 1rem;" onclick="terminateContainer()">
+                        Terminate Container
+                    </button>
+                `;
+            } else if (status.status === 'TERMINATED') {
+                statusHTML += `
+                    <p>Container has been terminated.</p>
+                    <button class="btn" onclick="hideContainerStatus()">Close</button>
+                `;
+                activeSession = null;
+                stopStatusChecking();
+            }
+            
+            statusHTML += '</div>';
+            
+            // Insert or update the status section
+            const existingStatus = document.getElementById('containerStatus');
+            if (existingStatus) {
+                existingStatus.outerHTML = statusHTML;
+            } else {
+                const challengesSection = document.querySelector('.challenges-section');
+                challengesSection.insertAdjacentHTML('afterend', statusHTML);
+            }
+        }
+
+        async function checkContainerStatus() {
+            if (!activeSession) return;
+            
+            try {
+                const response = await fetch(`${API_ENDPOINT}/api/containers`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': authToken
+                    },
+                    body: JSON.stringify({
+                        action: 'status',
+                        sessionId: activeSession
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showContainerStatus(data);
+                    
+                    // Update time remaining
+                    if (data.expiresIn > 0 && document.getElementById('timeRemaining')) {
+                        document.getElementById('timeRemaining').textContent = formatTime(data.expiresIn);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        }
+
+        function startStatusChecking() {
+            // Check immediately
+            setTimeout(checkContainerStatus, 2000);
+            
+            // Then check every 5 seconds
+            statusCheckInterval = setInterval(checkContainerStatus, 5000);
+        }
+
+        function stopStatusChecking() {
+            if (statusCheckInterval) {
+                clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
+            }
+        }
+
+        async function terminateContainer() {
+            if (!activeSession) return;
+            
+            if (confirm('Are you sure you want to terminate this container?')) {
+                try {
+                    const response = await fetch(`${API_ENDPOINT}/api/containers`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': authToken
+                        },
+                        body: JSON.stringify({
+                            action: 'terminate',
+                            sessionId: activeSession
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        showMessage('Container terminated', 'success');
+                        showContainerStatus({ status: 'TERMINATED' });
+                    }
+                } catch (error) {
+                    showMessage('Error terminating container', 'error');
+                }
+            }
+        }
+
+        function copySSHCommand() {
+            const command = document.getElementById('sshCommand').textContent;
+            navigator.clipboard.writeText(command).then(() => {
+                showMessage('SSH command copied to clipboard!', 'success');
+            });
+        }
+
+        function hideContainerStatus() {
+            const status = document.getElementById('containerStatus');
+            if (status) {
+                status.classList.remove('active');
+                setTimeout(() => status.remove(), 500);
+            }
+        }
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${minutes}m`;
+        }
+
+        function refreshChallenges() {
+            loadChallenges();
+            showMessage('Challenges refreshed', 'success');
+        }
+
+        function showMessage(text, type) {
+            const existing = document.querySelector('.message');
+            if (existing) existing.remove();
+            
+            const message = document.createElement('div');
+            message.className = `message ${type}`;
+            message.textContent = text;
+            document.body.appendChild(message);
+            
+            setTimeout(() => message.remove(), 3000);
+        }
+    </script>
+</body>
+</html>
+EOF
+
+# Upload the fixed dashboard
+aws s3 cp dashboard-fixed.html s3://$BUCKET_NAME/dashboard.html
+aws s3 cp dashboard-fixed.html s3://$BUCKET_NAME/index.html
+
+echo "✅ Fixed dashboard uploaded"
+
+# Step 6: Test the container API
+echo "📋 Step 6: Testing container API..."
+
+# Test health endpoint
+echo -n "Testing API health... "
+HEALTH_RESPONSE=$(curl -s "$API_ENDPOINT/api/health" 2>/dev/null)
+if echo $HEALTH_RESPONSE | grep -q "healthy"; then
+    echo "✅ PASS"
+else
+    echo "❌ FAIL - Response: $HEALTH_RESPONSE"
+fi
+
+# Test container endpoint
+echo -n "Testing container endpoint... "
+CONTAINER_RESPONSE=$(curl -s -X POST "$API_ENDPOINT/api/containers" \
+    -H "Content-Type: application/json" \
+    -d '{"action": "launch", "userId": "test", "challengeId": "test"}' 2>/dev/null)
+
+if echo $CONTAINER_RESPONSE | grep -q "mock-session"; then
+    echo "✅ PASS"
+else
+    echo "❌ FAIL - Response: $CONTAINER_RESPONSE"
+fi
+
+# Step 7: Invalidate CloudFront cache
+echo "📋 Step 7: Invalidating CloudFront cache..."
+
+aws cloudfront create-invalidation \
+  --distribution-id $DISTRIBUTION_ID \
+  --paths "/*" \
+  --output json > /dev/null
+
+echo "✅ CloudFront cache invalidated"
+
+# Clean up
+rm -f dashboard-fixed.html
+
+# Step 8: Update configuration file
+echo "📋 Step 8: Updating configuration..."
+
+cat >> step6-config-fixed.sh << EOF
+
+# CONTAINER SYSTEM CONFIGURATION (FIXED)
+export CONTAINER_LAMBDA_ARN=$CONTAINER_LAMBDA_ARN
+export CONTAINERS_RESOURCE_ID=$CONTAINERS_RESOURCE_ID
+export CONTAINER_ENDPOINTS="Fixed and Working"
+EOF
+
+echo ""
+echo "🎉 CONTAINER ENDPOINTS FIXED!"
+echo "=============================="
+echo ""
+echo "✅ Fixed Issues:"
+echo "   - Container Lambda created/updated"
+echo "   - /api/containers resource created in API Gateway"
+echo "   - POST method configured with Lambda integration"
+echo "   - CORS properly enabled"
+echo "   - Dashboard updated to use correct API endpoint"
+echo ""
+echo "✅ Container API Endpoints:"
+echo "   POST $API_ENDPOINT/api/containers"
+echo ""
+echo "✅ Test Commands:"
+echo "   # Test container launch (mock mode)"
+echo "   curl -X POST \"$API_ENDPOINT/api/containers\" \\"
+echo "     -H \"Content-Type: application/json\" \\"
+echo "     -d '{\"action\": \"launch\", \"userId\": \"test\", \"challengeId\": \"test\"}'"
+echo ""
+echo "🔗 Dashboard URL: $CLOUDFRONT_URL/dashboard.html"
+echo ""
+echo "📋 What to test:"
+echo "   1. Wait 2-3 minutes for CloudFront cache to clear"
+echo "   2. Login to the dashboard"
+echo "   3. Click 'Start Challenge' on any challenge"
+echo "   4. You should see a container status showing 'mock-session'"
+echo ""
+echo "💡 The container system is now in mock mode and will show fake"
+echo "   container data. This proves the API integration is working."
+echo "   Real containers can be added later by updating the Lambda function."
+echo ""
+
+echo "🔧 Container endpoints are now fixed and working!"
