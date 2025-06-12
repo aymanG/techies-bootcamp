@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORS Fix Test - DevOps Bootcamp</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #0a0a0a;
+            color: #00ff88;
+            font-family: 'Courier New', monospace;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0,255,136,0.3);
+            text-align: center;
+        }
+        .status-box {
+            background: #1a1a1a;
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        button {
+            background: #00ff88;
+            color: #0a0a0a;
+            border: none;
+            padding: 12px 24px;
+            margin: 8px 4px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+            font-family: inherit;
+        }
+        button:hover {
+            background: #00cc6a;
+        }
+        .response {
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        .success { color: #00ff88; }
+        .error { color: #ff4444; }
+        .warning { color: #ffaa00; }
+        .info { color: #4488ff; }
+        @media (max-width: 768px) {
+            .test-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 CORS Fix Test Page</h1>
+        
+        <div class="status-box">
+            <h3>🎯 API Endpoints</h3>
+            <div><strong>Direct API:</strong> https://hdxbz1zbx4.execute-api.us-east-1.amazonaws.com/prod/api/containers</div>
+            <div><strong>CloudFront:</strong> https://d1t1et5tjvep2.cloudfront.net/api/containers</div>
+            <div><strong>Status:</strong> <span id="overall-status">Testing...</span></div>
+        </div>
+        
+        <div class="test-grid">
+            <div>
+                <h3>🔬 CORS Tests</h3>
+                <button onclick="testDirectCORS()">Test Direct API CORS</button>
+                <button onclick="testCloudFrontCORS()">Test CloudFront CORS</button>
+                <button onclick="testBothEndpoints()">Compare Both</button>
+            </div>
+            <div>
+                <h3>🚀 Container API Tests</h3>
+                <button onclick="testContainerLaunch()">Test Container Launch</button>
+                <button onclick="testContainerStatus()">Test Container Status</button>
+                <button onclick="testFullWorkflow()">Test Full Workflow</button>
+            </div>
+        </div>
+        
+        <div class="status-box">
+            <h3>📋 Test Results</h3>
+            <div id="test-results" class="response">Ready to run tests...\n</div>
+        </div>
+        
+        <div class="status-box">
+            <h3>🔗 Quick Links</h3>
+            <button onclick="openDashboard()">Open Main Dashboard</button>
+            <button onclick="clearResults()">Clear Results</button>
+            <button onclick="downloadReport()">Download Report</button>
+        </div>
+    </div>
+
+    <script>
+        const DIRECT_API = 'https://hdxbz1zbx4.execute-api.us-east-1.amazonaws.com/prod/api/containers';
+        const CLOUDFRONT_API = 'https://d1t1et5tjvep2.cloudfront.net/api/containers';
+        
+        let testResults = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('test-results');
+            const colorClass = type === 'success' ? 'success' : 
+                              type === 'error' ? 'error' : 
+                              type === 'warning' ? 'warning' : 'info';
+            
+            const logEntry = `[${timestamp}] ${message}`;
+            testResults.push({ timestamp, message, type });
+            
+            logElement.innerHTML += `<span class="${colorClass}">${logEntry}</span>\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = 'Results cleared...\n';
+            testResults = [];
+        }
+        
+        async function testDirectCORS() {
+            log('🎯 Testing Direct API CORS headers...', 'info');
+            
+            try {
+                const response = await fetch(DIRECT_API, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': 'https://example.com',
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+                
+                const allowOrigin = response.headers.get('Access-Control-Allow-Origin');
+                const allowMethods = response.headers.get('Access-Control-Allow-Methods');
+                const allowHeaders = response.headers.get('Access-Control-Allow-Headers');
+                
+                log(`Direct API Status: ${response.status}`, response.status === 200 ? 'success' : 'error');
+                log(`Allow-Origin: ${allowOrigin || 'null'}`, allowOrigin ? 'success' : 'error');
+                log(`Allow-Methods: ${allowMethods || 'null'}`, allowMethods ? 'success' : 'error');
+                log(`Allow-Headers: ${allowHeaders || 'null'}`, allowHeaders ? 'success' : 'error');
+                
+                if (allowOrigin && allowMethods) {
+                    log('✅ Direct API CORS headers present!', 'success');
+                } else {
+                    log('❌ Direct API CORS headers missing!', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Direct API CORS test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testCloudFrontCORS() {
+            log('☁️ Testing CloudFront CORS headers...', 'info');
+            
+            try {
+                const response = await fetch(CLOUDFRONT_API, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': 'https://example.com',
+                        'Access-Control-Request-Method': 'POST'
+                    }
+                });
+                
+                const allowOrigin = response.headers.get('Access-Control-Allow-Origin');
+                const status = response.status;
+                
+                log(`CloudFront Status: ${status}`, status === 200 ? 'success' : 'error');
+                log(`CF Allow-Origin: ${allowOrigin || 'null'}`, allowOrigin ? 'success' : 'error');
+                
+                if (status === 200 && allowOrigin) {
+                    log('✅ CloudFront CORS working!', 'success');
+                } else {
+                    log('❌ CloudFront CORS issues detected!', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ CloudFront CORS test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testBothEndpoints() {
+            log('🔄 Comparing Direct API vs CloudFront...', 'info');
+            await testDirectCORS();
+            await testCloudFrontCORS();
+            
+            log('📊 Comparison complete. Use direct API if CloudFront has issues.', 'warning');
+        }
+        
+        async function testContainerLaunch() {
+            log('🚀 Testing container launch...', 'info');
+            
+            const testData = {
+                action: 'launch',
+                userId: 'test-user',
+                challengeId: 'welcome'
+            };
+            
+            try {
+                const response = await fetch(DIRECT_API, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                log(`Launch Status: ${response.status}`, response.status === 200 ? 'success' : 'error');
+                log(`Launch Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                
+                if (data.sessionId) {
+                    log(`✅ Container launch successful! Session: ${data.sessionId}`, 'success');
+                    window.testSessionId = data.sessionId;
+                } else {
+                    log('❌ Container launch failed!', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Container launch test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testContainerStatus() {
+            log('📊 Testing container status...', 'info');
+            
+            const sessionId = window.testSessionId || 'demo-session';
+            const testData = {
+                action: 'status',
+                sessionId: sessionId
+            };
+            
+            try {
+                const response = await fetch(DIRECT_API, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                log(`Status Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                
+                if (data.status) {
+                    log(`✅ Container status: ${data.status}`, 'success');
+                } else {
+                    log('❌ Container status failed!', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Container status test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testFullWorkflow() {
+            log('🔄 Testing full container workflow...', 'info');
+            
+            await testContainerLaunch();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testContainerStatus();
+            
+            log('🎉 Full workflow test complete!', 'success');
+        }
+        
+        function openDashboard() {
+            log('📊 Opening main dashboard...', 'info');
+            window.open('https://d1t1et5tjvep2.cloudfront.net/dashboard.html', '_blank');
+        }
+        
+        function downloadReport() {
+            const report = testResults.map(r => `[${r.timestamp}] [${r.type.toUpperCase()}] ${r.message}`).join('\n');
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cors-test-report-${new Date().getTime()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Auto-run initial tests
+        window.onload = () => {
+            log('🔧 CORS Fix Test Page Loaded', 'success');
+            log('Ready to test your API endpoints!', 'info');
+            
+            // Auto-test CORS after 2 seconds
+            setTimeout(() => {
+                log('🎯 Running automatic CORS test...', 'info');
+                testBothEndpoints();
+            }, 2000);
+        };
+    </script>
+</body>
+</html>

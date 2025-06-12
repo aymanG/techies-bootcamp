@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Bootcamp - API Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #0a0a0a;
+            color: #00ff88;
+            font-family: 'Courier New', monospace;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+        .test-section {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #333;
+        }
+        button {
+            background: #00ff88;
+            color: #0a0a0a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover {
+            background: #00cc6f;
+        }
+        .response {
+            background: #0a0a0a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            border: 1px solid #333;
+        }
+        .success { border-color: #00ff88; }
+        .error { border-color: #ff0088; }
+        .loading { opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>API Backend Test</h1>
+        
+        <div class="test-section">
+            <h2>1. Health Check (No Auth Required)</h2>
+            <button onclick="testHealth()">Test Health Endpoint</button>
+            <div id="health-response" class="response"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>2. Get Challenges (No Auth Required)</h2>
+            <button onclick="testChallenges()">Get Challenges</button>
+            <div id="challenges-response" class="response"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>3. Get Profile (Auth Required)</h2>
+            <p>First login on the auth page, then test here</p>
+            <button onclick="testProfile()">Get My Profile</button>
+            <div id="profile-response" class="response"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>4. Update Progress (Auth Required)</h2>
+            <button onclick="testProgress()">Update Progress</button>
+            <div id="progress-response" class="response"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Configuration</h2>
+            <p>Lambda URL: <span id="lambda-url"></span></p>
+            <p>Auth Token: <span id="auth-token">Not logged in</span></p>
+        </div>
+    </div>
+
+    <script>
+        // WILL BE REPLACED BY SED
+        const LAMBDA_URL = 'https://ucj5xcgpf5vdilzy336ocazp7y0vvtya.lambda-url.us-east-1.on.aws/';
+        
+        // Show Lambda URL
+        document.getElementById('lambda-url').textContent = LAMBDA_URL;
+        
+        // Get auth token from Cognito
+        function getAuthToken() {
+            const token = localStorage.getItem('CognitoIdentityServiceProvider.6qgl1afuotr6u1pa4n2kfnrcml.LastAuthUser');
+            if (token) {
+                const idToken = localStorage.getItem(`CognitoIdentityServiceProvider.6qgl1afuotr6u1pa4n2kfnrcml.${token}.idToken`);
+                if (idToken) {
+                    document.getElementById('auth-token').textContent = 'Found (JWT)';
+                    return idToken;
+                }
+            }
+            document.getElementById('auth-token').textContent = 'Not found - please login first';
+            return null;
+        }
+        
+        async function makeRequest(path, options = {}) {
+            const url = LAMBDA_URL + path;
+            const token = getAuthToken();
+            
+            const headers = {
+                'Content-Type': 'application/json',
+                ...options.headers
+            };
+            
+            if (token && path.includes('user')) {
+                headers['Authorization'] = token;
+            }
+            
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers,
+                    mode: 'cors'
+                });
+                
+                const data = await response.json();
+                return {
+                    status: response.status,
+                    data: data,
+                    success: response.ok
+                };
+            } catch (error) {
+                return {
+                    status: 0,
+                    data: { error: error.message },
+                    success: false
+                };
+            }
+        }
+        
+        async function testHealth() {
+            const responseEl = document.getElementById('health-response');
+            responseEl.textContent = 'Loading...';
+            responseEl.className = 'response loading';
+            
+            const result = await makeRequest('api/health');
+            
+            responseEl.textContent = JSON.stringify(result, null, 2);
+            responseEl.className = `response ${result.success ? 'success' : 'error'}`;
+        }
+        
+        async function testChallenges() {
+            const responseEl = document.getElementById('challenges-response');
+            responseEl.textContent = 'Loading...';
+            responseEl.className = 'response loading';
+            
+            const result = await makeRequest('api/challenges');
+            
+            responseEl.textContent = JSON.stringify(result, null, 2);
+            responseEl.className = `response ${result.success ? 'success' : 'error'}`;
+        }
+        
+        async function testProfile() {
+            const responseEl = document.getElementById('profile-response');
+            responseEl.textContent = 'Loading...';
+            responseEl.className = 'response loading';
+            
+            const result = await makeRequest('api/user/profile');
+            
+            responseEl.textContent = JSON.stringify(result, null, 2);
+            responseEl.className = `response ${result.success ? 'success' : 'error'}`;
+        }
+        
+        async function testProgress() {
+            const responseEl = document.getElementById('progress-response');
+            responseEl.textContent = 'Loading...';
+            responseEl.className = 'response loading';
+            
+            const result = await makeRequest('api/user/progress', {
+                method: 'POST',
+                body: JSON.stringify({
+                    challengeId: 'welcome',
+                    completed: true,
+                    points: 10
+                })
+            });
+            
+            responseEl.textContent = JSON.stringify(result, null, 2);
+            responseEl.className = `response ${result.success ? 'success' : 'error'}`;
+        }
+        
+        // Check auth status on load
+        window.onload = () => {
+            getAuthToken();
+        };
+    </script>
+</body>
+</html>
